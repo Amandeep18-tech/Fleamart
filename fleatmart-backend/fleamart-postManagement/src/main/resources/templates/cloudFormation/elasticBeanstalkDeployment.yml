@@ -1,0 +1,78 @@
+#This script to create ElasticBeanstalk instanace is created by 
+#referring to the template present on below AWS documentation
+#https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/quickref-elasticbeanstalk.html
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+Parameters:
+    artifactsBucket:
+        Type: String
+        Description: Name of the S3Bucket where service jar file is present
+        Default: fleatmart-backend-application
+                
+Resources:
+  postManagementService:
+    Type: AWS::ElasticBeanstalk::Application
+    Properties:
+      Description: AWS Elastic Beanstalk Post management service
+  
+  postManagementServiceVersion:
+    Type: AWS::ElasticBeanstalk::ApplicationVersion
+    Properties:
+      ApplicationName:
+        Ref: postManagementService
+      Description: AWS Elastic Beanstalk Post management service Version
+      SourceBundle:
+        S3Bucket:
+          Ref: artifactsBucket 
+        S3Key: postManagement-0.0.1-SNAPSHOT.jar
+  
+  postManagementServiceConfigurationTemplate:
+    Type: AWS::ElasticBeanstalk::ConfigurationTemplate
+    Properties:
+      ApplicationName:
+        Ref: postManagementService
+      Description: AWS ElasticBeanstalk Post management service configuration Template
+      OptionSettings:
+      - Namespace: aws:elasticbeanstalk:environment
+        OptionName: EnvironmentType
+        Value: SingleInstance
+      - Namespace: aws:autoscaling:launchconfiguration
+        OptionName: IamInstanceProfile
+        Value: !Ref MyInstanceProfile               
+      SolutionStackName: 64bit Amazon Linux 2 v3.2.13 running Corretto 11
+  
+  postManagementProdEnvironment:
+    Type: AWS::ElasticBeanstalk::Environment
+    Properties:
+      ApplicationName:
+        Ref: postManagementService
+      EnvironmentName: post-management-prod
+      Description: AWS ElasticBeanstalk Prod Environment for Post management service
+      TemplateName:
+        Ref: postManagementServiceConfigurationTemplate
+      VersionLabel:
+        Ref: postManagementServiceVersion     
+
+  MyInstanceRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Description: Beanstalk EC2 role
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkMulticontainerDocker
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkWorkerTier
+  MyInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      Roles:
+        - !Ref MyInstanceRole        

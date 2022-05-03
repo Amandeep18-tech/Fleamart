@@ -1,0 +1,32 @@
+variables:
+  GIT_STRATEGY: clone
+  MAVEN_OPTS: "-Dmaven.repo.local=.m2/repository"
+
+image: maven:latest
+
+cache:
+  paths:
+    - .m2/repository
+    - target
+
+stages:
+  - build
+
+build:
+  stage: build
+  tags:
+    - ugrad
+  script:
+    - echo "Start of build"
+    - 'cd fleamart-postManagement'
+    - echo `pwd`
+    - mvn install
+    - echo `pwd`
+  only:
+    refs:
+      - branches
+  artifacts:    
+      paths:         
+         - target/    
+      expire_in: 1 hour
+

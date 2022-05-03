@@ -1,0 +1,88 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: CloudFormation template to configure S3 buckets for fleatMart application
+
+Resources:
+  S3Bucket1:
+    Type: 'AWS::S3::Bucket'
+    Description: S3 Bucket for fleatMart application to store images of user posts under Electronics category
+    Properties:
+      BucketName: 236790-electronics
+  
+  S3Bucket2:
+    Type: 'AWS::S3::Bucket'
+    Description: S3 Bucket for fleatMart application to store images of user posts under Furniture category
+    Properties:
+      BucketName: 236790-furniture
+        
+  S3Bucket3:
+    Type: 'AWS::S3::Bucket'
+    Description: S3 Bucket for fleatMart application to store images of user posts under Others category
+    Properties:
+      BucketName: 236790-others
+
+  S3Bucket1BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3Bucket1
+      PolicyDocument:
+        Statement:
+          -
+            Action:
+              - 's3:GetObject'
+            Effect: Allow
+            Resource:
+              - !Sub arn:aws:s3:::${S3Bucket1}/*
+            Principal: '*'  
+  
+  S3Bucket2BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3Bucket2
+      PolicyDocument:
+        Statement:
+          -
+            Action:
+              - 's3:GetObject'
+            Effect: Allow
+            Resource:
+              - !Sub arn:aws:s3:::${S3Bucket2}/*
+            Principal: '*'
+        
+  S3Bucket3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3Bucket3
+      PolicyDocument:
+        Statement:
+          -
+            Action:
+              - 's3:GetObject'
+            Effect: Allow
+            Resource:
+              - !Sub arn:aws:s3:::${S3Bucket3}/*
+            Principal: '*'
+
+Outputs:
+  BucketElectronics:
+    Description: Bucket for Product category Electronics created
+    Value: !Ref S3Bucket1
+    
+  BucketElectronicsPolicy:
+    Description: Bucket for Product category Electronics created
+    Value: !Ref S3Bucket1BucketPolicy
+    
+  BucketFurniture:
+    Description: Bucket for Product category Furniture created
+    Value: !Ref S3Bucket2
+    
+  BucketElectronicsPolicy:
+    Description: Bucket for Product category Electronics created
+    Value: !Ref S3Bucket2BucketPolicy
+    
+  BucketOthers:
+    Description: Bucket for Product category Others created
+    Value: !Ref S3Bucket3
+    
+  BucketElectronicsPolicy:
+    Description: Bucket for Product category Electronics created
+    Value: !Ref S3Bucket3BucketPolicy

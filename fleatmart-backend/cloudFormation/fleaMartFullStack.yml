@@ -1,0 +1,1071 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  artifactsBucket:
+      Type: String
+      Description: Name of the S3Bucket where service jar file is present
+      Default: fleamart-artifacts
+        
+Resources:
+  IAMRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/"
+      RoleName: "lambda-execute-cf"
+      AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+      MaxSessionDuration: 3600
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+      Description: "Allows Lambda functions to call AWS services on your behalf."
+
+  IAMUser:
+    Type: "AWS::IAM::User"
+    Properties:
+      Path: "/"
+      UserName: "fleamart-user-cf"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+        - "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
+        - "arn:aws:iam::aws:policy/AmazonSNSFullAccess"
+        - "arn:aws:iam::aws:policy/AWSLambda_FullAccess"
+
+  IAMAccessKey:
+    Type: "AWS::IAM::AccessKey"
+    Properties:
+      Status: "Active"
+      UserName: !Ref IAMUser
+
+  CognitoUserPool:
+    Type: 'AWS::Cognito::UserPool'
+    Properties:
+      UserPoolName: 'fleamart-cf'
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          TemporaryPasswordValidityDays: 7
+      LambdaConfig: { }
+      Schema:
+        - Name: 'email'
+          AttributeDataType: 'String'
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: false
+          StringAttributeConstraints:
+            MinLength: '0'
+            MaxLength: '2048'
+        - Name: 'gender'
+          AttributeDataType: 'String'
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: true
+          StringAttributeConstraints:
+            MinLength: '0'
+            MaxLength: '2048'
+        - Name: 'birthdate'
+          AttributeDataType: 'String'
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: true
+          StringAttributeConstraints:
+            MinLength: '10'
+            MaxLength: '10'
+        - Name: 'firstname'
+          AttributeDataType: 'String'
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: false
+          StringAttributeConstraints:
+            MinLength: '1'
+            MaxLength: '256'
+        - Name: 'lastname'
+          AttributeDataType: 'String'
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: false
+          StringAttributeConstraints:
+            MinLength: '1'
+            MaxLength: '256'
+        - Name: 'country'
+          AttributeDataType: 'String'
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: false
+          StringAttributeConstraints:
+            MinLength: '1'
+            MaxLength: '256'
+        - Name: 'city'
+          AttributeDataType: 'String'
+          DeveloperOnlyAttribute: false
+          Mutable: true
+          Required: false
+          StringAttributeConstraints:
+            MinLength: '1'
+            MaxLength: '256'
+      AutoVerifiedAttributes:
+        - 'email'
+      UsernameAttributes:
+        - 'email'
+      SmsVerificationMessage: 'Your verification code is {####}. '
+      EmailVerificationMessage: 'Your verification code is {####}. '
+      EmailVerificationSubject: 'Your verification code'
+      SmsAuthenticationMessage: 'Your authentication code is {####}. '
+      MfaConfiguration: 'OFF'
+      EmailConfiguration:
+        EmailSendingAccount: 'COGNITO_DEFAULT'
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+        InviteMessageTemplate:
+          SMSMessage: 'Your username is {username} and temporary password is {####}. '
+          EmailMessage: 'Your username is {username} and temporary password is {####}. '
+          EmailSubject: 'Your temporary password'
+      UserPoolTags: { }
+      UsernameConfiguration:
+        CaseSensitive: false
+      VerificationMessageTemplate:
+        SmsMessage: 'Your verification code is {####}. '
+        EmailMessage: 'Your verification code is {####}. '
+        EmailSubject: 'Your verification code'
+        EmailMessageByLink: |
+          Welcome to fleaMART
+          Please click the link below to verify your email address. {##Verify Email##}
+        EmailSubjectByLink: 'Your verification link'
+        DefaultEmailOption: 'CONFIRM_WITH_LINK'
+
+  CognitoUserPoolClient:
+    Type: 'AWS::Cognito::UserPoolClient'
+    Properties:
+      UserPoolId: !Ref CognitoUserPool
+      ClientName: 'web'
+      RefreshTokenValidity: 30
+      ReadAttributes:
+        - 'birthdate'
+        - 'custom:city'
+        - 'custom:country'
+        - 'custom:firstname'
+        - 'custom:lastname'
+        - 'email'
+        - 'gender'
+      WriteAttributes:
+        - 'birthdate'
+        - 'custom:city'
+        - 'custom:country'
+        - 'custom:firstname'
+        - 'custom:lastname'
+        - 'email'
+        - 'gender'
+      ExplicitAuthFlows:
+        - 'ALLOW_CUSTOM_AUTH'
+        - 'ALLOW_REFRESH_TOKEN_AUTH'
+        - 'ALLOW_USER_SRP_AUTH'
+      PreventUserExistenceErrors: 'ENABLED'
+      AllowedOAuthFlowsUserPoolClient: false
+      IdTokenValidity: 60
+      AccessTokenValidity: 60
+      TokenValidityUnits:
+        AccessToken: 'minutes'
+        IdToken: 'minutes'
+        RefreshToken: 'days'
+
+  CognitoUserPoolDomain:
+    Type: 'AWS::Cognito::UserPoolDomain'
+    Properties:
+      Domain: 'flea-mart-cf'
+      UserPoolId: !Ref CognitoUserPool
+
+  postManagementService:
+    Type: AWS::ElasticBeanstalk::Application
+    Properties:
+      Description: AWS Elastic Beanstalk Post management service
+  
+  postManagementServiceVersion:
+    Type: AWS::ElasticBeanstalk::ApplicationVersion
+    Properties:
+      ApplicationName:
+        Ref: postManagementService
+      Description: AWS Elastic Beanstalk Post management service Version
+      SourceBundle:
+        S3Bucket:
+          Ref: artifactsBucket 
+        S3Key: postManagement-0.0.1-SNAPSHOT.jar
+  
+  postManagementServiceConfigurationTemplate:
+    Type: AWS::ElasticBeanstalk::ConfigurationTemplate
+    Properties:
+      ApplicationName:
+        Ref: postManagementService
+      Description: AWS ElasticBeanstalk Post management service configuration Template
+      OptionSettings:
+      - Namespace: aws:elasticbeanstalk:environment
+        OptionName: EnvironmentType
+        Value: SingleInstance
+      - Namespace: aws:autoscaling:launchconfiguration
+        OptionName: IamInstanceProfile
+        Value: !Ref MyInstanceProfile  
+      - Namespace: aws:elasticbeanstalk:application:environment
+        OptionName: USER_ACCESS_KEY
+        Value: !Ref IAMAccessKey
+      - Namespace: aws:elasticbeanstalk:application:environment
+        OptionName: USER_SECRET_KEY
+        Value: !GetAtt IAMAccessKey.SecretAccessKey
+      SolutionStackName: 64bit Amazon Linux 2 v3.2.13 running Corretto 11
+  
+  postManagementProdEnvironment:
+    Type: AWS::ElasticBeanstalk::Environment
+    Properties:
+      ApplicationName:
+        Ref: postManagementService
+      EnvironmentName: post-management-prod
+      Description: AWS ElasticBeanstalk Prod Environment for Post management service
+      TemplateName:
+        Ref: postManagementServiceConfigurationTemplate
+      VersionLabel:
+        Ref: postManagementServiceVersion     
+
+  MyInstanceRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Description: Beanstalk EC2 role
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkMulticontainerDocker
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkWorkerTier
+
+  MyInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      Roles:
+        - !Ref MyInstanceRole        
+  
+  PostDynamoDBTable: 
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      AttributeDefinitions: 
+        - 
+          AttributeName: "Id"
+          AttributeType: "S"
+      KeySchema: 
+        - 
+          AttributeName: "Id"
+          KeyType: "HASH"
+      ProvisionedThroughput: 
+        ReadCapacityUnits: "5"
+        WriteCapacityUnits: "5"
+      TableName: "Post"
+      Tags:
+        - Key: PostManagement
+          Value: Table
+
+  SNSTopic:
+        Type: "AWS::SNS::Topic"
+        Properties:
+            DisplayName: "Electronics Post(s) Created"
+            TopicName: "Electronics"
+
+  SNSTopic2:
+        Type: "AWS::SNS::Topic"
+        Properties:
+            DisplayName: "Other Post(s) Created"
+            TopicName: "Others"
+
+  SNSTopic3:
+        Type: "AWS::SNS::Topic"
+        Properties:
+            DisplayName: "Furniture Post(s) Created"
+            TopicName: "Furniture"
+
+  SNSTopicPolicy:
+        Type: "AWS::SNS::TopicPolicy"
+        Properties:
+            PolicyDocument: !Sub "{\"Version\":\"2008-10-17\",\"Id\":\"_default_policy_ID\",\"Statement\":[{\"Sid\":\"_default_statement_ID\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"*\"},\"Action\":[\"SNS:GetTopicAttributes\",\"SNS:SetTopicAttributes\",\"SNS:AddPermission\",\"SNS:RemovePermission\",\"SNS:DeleteTopic\",\"SNS:Subscribe\",\"SNS:ListSubscriptionsByTopic\",\"SNS:Publish\"],\"Resource\":\"${SNSTopic}\",\"Condition\":{\"StringEquals\":{\"AWS:SourceOwner\":\"${AWS::AccountId}\"}}}]}"
+            Topics: 
+              - !Ref SNSTopic
+
+  SNSTopicPolicy2:
+        Type: "AWS::SNS::TopicPolicy"
+        Properties:
+            PolicyDocument: !Sub "{\"Version\":\"2008-10-17\",\"Id\":\"_default_policy_ID\",\"Statement\":[{\"Sid\":\"_default_statement_ID\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"*\"},\"Action\":[\"SNS:GetTopicAttributes\",\"SNS:SetTopicAttributes\",\"SNS:AddPermission\",\"SNS:RemovePermission\",\"SNS:DeleteTopic\",\"SNS:Subscribe\",\"SNS:ListSubscriptionsByTopic\",\"SNS:Publish\"],\"Resource\":\"${SNSTopic2}\",\"Condition\":{\"StringEquals\":{\"AWS:SourceOwner\":\"${AWS::AccountId}\"}}}]}"
+            Topics: 
+              - !Ref SNSTopic2
+
+  SNSTopicPolicy3:
+        Type: "AWS::SNS::TopicPolicy"
+        Properties:
+            PolicyDocument: !Sub "{\"Version\":\"2008-10-17\",\"Id\":\"_default_policy_ID\",\"Statement\":[{\"Sid\":\"_default_statement_ID\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"*\"},\"Action\":[\"SNS:GetTopicAttributes\",\"SNS:SetTopicAttributes\",\"SNS:AddPermission\",\"SNS:RemovePermission\",\"SNS:DeleteTopic\",\"SNS:Subscribe\",\"SNS:ListSubscriptionsByTopic\",\"SNS:Publish\"],\"Resource\":\"${SNSTopic3}\",\"Condition\":{\"StringEquals\":{\"AWS:SourceOwner\":\"${AWS::AccountId}\"}}}]}"
+            Topics: 
+              - !Ref SNSTopic3 
+              
+  S3Bucket1:
+    Type: 'AWS::S3::Bucket'
+    Description: S3 Bucket for fleatMart application to store images of user posts under Electronics category
+    Properties:
+      BucketName: fleamart-electronics
+  
+  S3Bucket2:
+    Type: 'AWS::S3::Bucket'
+    Description: S3 Bucket for fleatMart application to store images of user posts under Furniture category
+    Properties:
+      BucketName: fleamart-furniture
+        
+  S3Bucket3:
+    Type: 'AWS::S3::Bucket'
+    Description: S3 Bucket for fleatMart application to store images of user posts under Others category
+    Properties:
+      BucketName: fleamart-others
+
+  S3Bucket1BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3Bucket1
+      PolicyDocument:
+        Statement:
+          -
+            Action:
+              - 's3:GetObject'
+            Effect: Allow
+            Resource:
+              - !Sub arn:aws:s3:::${S3Bucket1}/*
+            Principal: '*'  
+  
+  S3Bucket2BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3Bucket2
+      PolicyDocument:
+        Statement:
+          -
+            Action:
+              - 's3:GetObject'
+            Effect: Allow
+            Resource:
+              - !Sub arn:aws:s3:::${S3Bucket2}/*
+            Principal: '*'
+        
+  S3Bucket3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3Bucket3
+      PolicyDocument:
+        Statement:
+          -
+            Action:
+              - 's3:GetObject'
+            Effect: Allow
+            Resource:
+              - !Sub arn:aws:s3:::${S3Bucket3}/*
+            Principal: '*'  
+
+  LambdaFunction:
+        Type: "AWS::Lambda::Function"
+        Properties:
+            Description: ""
+            Environment: 
+                Variables: 
+                    aws_access_key_id: !Ref IAMAccessKey
+                    aws_secret_access_key: !GetAtt IAMAccessKey.SecretAccessKey
+                    region_name: !Ref AWS::Region
+            FunctionName: "notify"
+            Handler: "notify.lambda_handler"
+            Architectures: 
+              - "x86_64"
+            Code: 
+                S3Bucket: !Ref artifactsBucket
+                S3Key: "notify.zip"
+            MemorySize: 128
+            Role: !GetAtt IAMRole.Arn
+            Runtime: "python3.9"
+            Timeout: 3
+            TracingConfig: 
+                Mode: "PassThrough"
+
+  LambdaFunction2:
+        Type: "AWS::Lambda::Function"
+        Properties:
+            Description: ""
+            Environment: 
+                Variables: 
+                    aws_access_key_id: !Ref IAMAccessKey
+                    aws_secret_access_key: !GetAtt IAMAccessKey.SecretAccessKey
+                    region_name: !Ref AWS::Region
+            FunctionName: "topics"
+            Handler: "topics.lambda_handler"
+            Architectures: 
+              - "x86_64"
+            Code: 
+                S3Bucket: !Ref artifactsBucket
+                S3Key: "topics.zip"
+            MemorySize: 128
+            Role: !GetAtt IAMRole.Arn
+            Runtime: "python3.9"
+            Timeout: 3
+            TracingConfig: 
+                Mode: "PassThrough"
+
+  LambdaFunction3:
+        Type: "AWS::Lambda::Function"
+        Properties:
+            Description: ""
+            Environment: 
+                Variables: 
+                    aws_access_key_id: !Ref IAMAccessKey
+                    aws_secret_access_key: !GetAtt IAMAccessKey.SecretAccessKey
+                    region_name: !Ref AWS::Region
+            FunctionName: "subscribe"
+            Handler: "subscribe.lambda_handler"
+            Architectures: 
+              - "x86_64"
+            Code: 
+                S3Bucket: !Ref artifactsBucket
+                S3Key: "subscribe.zip"
+            MemorySize: 128
+            Role: !GetAtt IAMRole.Arn
+            Runtime: "python3.9"
+            Timeout: 3
+            TracingConfig: 
+                Mode: "PassThrough"
+
+  LambdaFunction4:
+        Type: "AWS::Lambda::Function"
+        Properties:
+            Description: ""
+            Environment: 
+                Variables: 
+                    aws_access_key_id: !Ref IAMAccessKey
+                    aws_secret_access_key: !GetAtt IAMAccessKey.SecretAccessKey
+                    region_name: !Ref AWS::Region
+            FunctionName: "unsubscribe"
+            Handler: "unsubscribe.lambda_handler"
+            Architectures: 
+              - "x86_64"
+            Code: 
+                S3Bucket: !Ref artifactsBucket
+                S3Key: "unsubscribe.zip"
+            MemorySize: 128
+            Role: !GetAtt IAMRole.Arn
+            Runtime: "python3.9"
+            Timeout: 3
+            TracingConfig: 
+                Mode: "PassThrough"
+
+  PostAPI:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: FleaMART Listings API
+      Description: APIs for FleaMART Listings management
+      EndpointConfiguration:
+        Types:
+        - REGIONAL
+      Body:
+        swagger: "2.0"
+        info:
+          description: "To create and management listings on fleaMART"
+          version: "2022-04-02T05:54:36Z"
+          title: "listing-service"
+        schemes:
+        - "https"
+
+        paths:
+          /subscribe:
+            post:
+              produces:
+                - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                httpMethod: "POST"
+                uri: !Sub
+                  - "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${lambdaArn}/invocations"
+                  - lambdaArn: !GetAtt LambdaFunction3.Arn
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                passthroughBehavior: "when_no_match"
+                contentHandling: "CONVERT_TO_TEXT"
+                type: "aws"
+            options:
+              consumes:
+                - "application/json"
+              produces:
+                - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+          /notify:
+            post:
+              produces:
+                - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                httpMethod: "POST"
+                uri: !Sub
+                  - "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${lambdaArn}/invocations"
+                  - lambdaArn: !GetAtt LambdaFunction.Arn
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                passthroughBehavior: "when_no_match"
+                contentHandling: "CONVERT_TO_TEXT"
+                type: "aws"
+            options:
+              consumes:
+                - "application/json"
+              produces:
+                - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+          /topics:
+            get:
+              produces:
+                - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                httpMethod: "POST"
+                uri: !Sub
+                  - "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${lambdaArn}/invocations"
+                  - lambdaArn: !GetAtt LambdaFunction2.Arn
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                passthroughBehavior: "when_no_match"
+                contentHandling: "CONVERT_TO_TEXT"
+                type: "aws_proxy"
+            options:
+              consumes:
+                - "application/json"
+              produces:
+                - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+          /unsubscribe:
+            post:
+              produces:
+                - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                httpMethod: "POST"
+                uri: !Sub
+                  - "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${lambdaArn}/invocations"
+                  - lambdaArn: !GetAtt LambdaFunction4.Arn
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                passthroughBehavior: "when_no_match"
+                contentHandling: "CONVERT_TO_TEXT"
+                type: "aws"
+            options:
+              consumes:
+                - "application/json"
+              produces:
+                - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+          /listing:
+            get:
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                "404":
+                  description: "404 response"
+              x-amazon-apigateway-integration:
+                httpMethod: "GET"
+                uri: !Join [ "" , [ "http://", !GetAtt postManagementProdEnvironment.EndpointURL, "/listing" ] ]
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                passthroughBehavior: "when_no_match"
+                type: "http_proxy"
+            post:
+              produces:
+              - "application/json"
+              parameters:
+              - name: "Content-Type"
+                in: "header"
+                required: false
+                type: "string"
+              - name: "Accept"
+                in: "header"
+                required: false
+                type: "string"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                "201":
+                  description: "201 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                "400":
+                  description: "400 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+              x-amazon-apigateway-integration:
+                httpMethod: "POST"
+                uri: !Join [ "" , [ "http://", !GetAtt postManagementProdEnvironment.EndpointURL, "/listing" ] ]
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                requestParameters:
+                  integration.request.header.Accept: "method.request.header.Accept"
+                  integration.request.header.Content-Type: "method.request.header.Content-Type"
+                passthroughBehavior: "when_no_match"
+                type: "http_proxy"
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,POST'"
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+          /listing/user/{userId}:
+            get:
+              produces:
+              - "application/json"
+              parameters:
+              - name: "userId"
+                in: "path"
+                required: true
+                type: "string"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                "404":
+                  description: "404 response"
+              x-amazon-apigateway-integration:
+                httpMethod: "GET"
+                uri: !Join [ "" , [ "http://", !GetAtt postManagementProdEnvironment.EndpointURL, "/listing/user/{userId}" ] ]
+                responses:
+                  default:
+                    statusCode: "200"
+                requestParameters:
+                  integration.request.path.userId: "method.request.path.userId"
+                passthroughBehavior: "when_no_match"
+                type: "http_proxy"
+          /listing/{postId}:
+            get:
+              produces:
+              - "application/json"
+              parameters:
+              - name: "postId"
+                in: "path"
+                required: true
+                type: "string"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                "404":
+                  description: "404 response"
+              x-amazon-apigateway-integration:
+                httpMethod: "GET"
+                uri: !Join [ "" , [ "http://", !GetAtt postManagementProdEnvironment.EndpointURL, "/listing/{postId}" ] ]
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                requestParameters:
+                  integration.request.path.postId: "method.request.path.postId"
+                passthroughBehavior: "when_no_match"
+                type: "http_proxy"
+            put:
+              produces:
+              - "application/json"
+              parameters:
+              - name: "postId"
+                in: "path"
+                required: true
+                type: "string"
+              - name: "Content-Type"
+                in: "header"
+                required: false
+                type: "string"
+              - name: "Accept"
+                in: "header"
+                required: false
+                type: "string"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                "400":
+                  description: "400 response"
+                "404":
+                  description: "404 response"
+              x-amazon-apigateway-integration:
+                httpMethod: "PUT"
+                uri: !Join [ "" , [ "http://", !GetAtt postManagementProdEnvironment.EndpointURL, "/listing/{postId}" ] ]
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                requestParameters:
+                  integration.request.header.Accept: "method.request.header.Accept"
+                  integration.request.path.postId: "method.request.path.postId"
+                  integration.request.header.Content-Type: "method.request.header.Content-Type"
+                passthroughBehavior: "when_no_match"
+                type: "http_proxy"
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              parameters:
+              - name: "postId"
+                in: "path"
+                required: true
+                type: "string"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS,PUT'"
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+        definitions:
+          Empty:
+            type: "object"
+            title: "Empty Schema"
+        x-amazon-apigateway-binary-media-types:
+          -  "multipart/form-data"
+
+  lambdaApiGatewayInvoke:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt LambdaFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 
+      - arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PostAPI}/${Stage}/*/notify
+      - Stage: 'prod'
+
+  lambdaApiGatewayInvoke2:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt LambdaFunction2.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 
+      - arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PostAPI}/${Stage}/*/topics
+      - Stage: 'prod'
+    
+  lambdaApiGatewayInvoke3:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt LambdaFunction3.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 
+      - arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PostAPI}/${Stage}/*/subscribe
+      - Stage: 'prod'
+
+  lambdaApiGatewayInvoke4:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt LambdaFunction4.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 
+      - arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${PostAPI}/${Stage}/*/unsubscribe
+      - Stage: 'prod'
+   
+  PostApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+        Description: Deployment for Post API
+        RestApiId: !Ref PostAPI
+    
+  ApiGatewayStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+        DeploymentId: !Ref PostApiDeployment
+        Description: Prod stage deployment of Post Management REST API
+        RestApiId: !Ref PostAPI
+        StageName: 'prod'
+
+  AmplifyApp:
+    Type: 'AWS::Amplify::App'
+    Properties:
+      Name: 'fleamart-frontend-cf'
+      Repository: 'https://github.com/RahulKherajani/fleamart-frontend.git'
+      EnvironmentVariables:
+        - Name: 'REACT_APP_API_URL'
+          Value: !Sub "https://${PostAPI}.execute-api.${AWS::Region}.amazonaws.com/${ApiGatewayStage}"
+        - Name: 'REACT_APP_USER_POOL_ID'
+          Value: !Ref CognitoUserPool
+        - Name: 'REACT_APP_CLIENT_ID'
+          Value: !Ref CognitoUserPoolClient
+      CustomRules:
+        - Source: '/<*>'
+          Target: '/index.html'
+          Status: '404-200'
+        - Source: "</^[^.]+$|\\.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|ttf|map|json)$)([^.]+$)/>"
+          Target: '/index.html'
+          Status: '200'
+      BuildSpec: |
+        version: 1
+        frontend:
+          phases:
+            preBuild:
+              commands:
+                - npm install
+            build:
+              commands:
+                - npm run build
+          artifacts:
+            baseDirectory: build
+            files:
+              - '**/*'
+          cache:
+            paths:
+              - node_modules/**/*
+
+      EnableBranchAutoDeletion: false
+      OauthToken: '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'
+      CustomHeaders: ''
+
+  AmplifyBranch:
+    Type: 'AWS::Amplify::Branch'
+    Properties:
+      BranchName: 'main'
+      Stage: 'PRODUCTION'
+      AppId: !GetAtt AmplifyApp.AppId
+      EnablePullRequestPreview: false
+      EnableAutoBuild: true
+      EnablePerformanceMode: false
+        
+Outputs:
+  Post:
+    Description: Post table created
+    Value: !Ref PostDynamoDBTable
+
+  BucketElectronics:
+    Description: Bucket for Product category Electronics created
+    Value: !Ref S3Bucket1
+    
+  BucketElectronicsPolicy:
+    Description: Bucket policy for Product category Electronics created
+    Value: !Ref S3Bucket1BucketPolicy
+    
+  BucketFurniture:
+    Description: Bucket for Product category Furniture created
+    Value: !Ref S3Bucket2
+    
+  BucketFurnituresPolicy:
+    Description: Bucket policy for Product category Furniture created
+    Value: !Ref S3Bucket2BucketPolicy
+    
+  BucketOthers:
+    Description: Bucket for Product category Others created
+    Value: !Ref S3Bucket3
+    
+  BucketOthersPolicy:
+    Description: Bucket policy for Product category Others created
+    Value: !Ref S3Bucket3BucketPolicy
+    
+  PostManagementURL:
+    Description: URL of the AWS Elastic Beanstalk PostManagement Environment
+    Value:
+      Fn::Join:
+      - ''
+      - - http://
+        - Fn::GetAtt:
+          - postManagementProdEnvironment
+          - EndpointURL

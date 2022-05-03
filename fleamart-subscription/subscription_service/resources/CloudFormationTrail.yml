@@ -1,0 +1,440 @@
+Parameters:
+    LambdaBucket:
+        Type: "String"
+        Default: "lambdafunctions-fleamart"
+    AccessKey:
+        Type: "String"
+        Default: "AKIA3EOK4A4FHRPDX5OJ"
+    SecretKey:
+        Type: "String"
+        Default: "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"
+
+    APIStage:
+        Type: "String"
+        Default: "prod"
+Resources:
+  SNSTopic:
+        Type: "AWS::SNS::Topic"
+        Properties:
+            DisplayName: "Electronics Post(s) Created"
+            TopicName: "Electronics"
+
+  SNSTopic2:
+      Type: "AWS::SNS::Topic"
+      Properties:
+          DisplayName: "Other Post(s) Created"
+          TopicName: "Others"
+
+  SNSTopic3:
+      Type: "AWS::SNS::Topic"
+      Properties:
+          DisplayName: "Furniture Post(s) Created"
+          TopicName: "Furniture"
+
+  SNSTopicPolicy:
+      Type: "AWS::SNS::TopicPolicy"
+      Properties:
+          PolicyDocument: !Sub "{\"Version\":\"2008-10-17\",\"Id\":\"_default_policy_ID\",\"Statement\":[{\"Sid\":\"_default_statement_ID\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"*\"},\"Action\":[\"SNS:GetTopicAttributes\",\"SNS:SetTopicAttributes\",\"SNS:AddPermission\",\"SNS:RemovePermission\",\"SNS:DeleteTopic\",\"SNS:Subscribe\",\"SNS:ListSubscriptionsByTopic\",\"SNS:Publish\"],\"Resource\":\"${SNSTopic}\",\"Condition\":{\"StringEquals\":{\"AWS:SourceOwner\":\"${AWS::AccountId}\"}}}]}"
+          Topics: 
+            - !Ref SNSTopic
+
+  SNSTopicPolicy2:
+      Type: "AWS::SNS::TopicPolicy"
+      Properties:
+          PolicyDocument: !Sub "{\"Version\":\"2008-10-17\",\"Id\":\"_default_policy_ID\",\"Statement\":[{\"Sid\":\"_default_statement_ID\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"*\"},\"Action\":[\"SNS:GetTopicAttributes\",\"SNS:SetTopicAttributes\",\"SNS:AddPermission\",\"SNS:RemovePermission\",\"SNS:DeleteTopic\",\"SNS:Subscribe\",\"SNS:ListSubscriptionsByTopic\",\"SNS:Publish\"],\"Resource\":\"${SNSTopic2}\",\"Condition\":{\"StringEquals\":{\"AWS:SourceOwner\":\"${AWS::AccountId}\"}}}]}"
+          Topics: 
+            - !Ref SNSTopic2
+
+  SNSTopicPolicy3:
+      Type: "AWS::SNS::TopicPolicy"
+      Properties:
+          PolicyDocument: !Sub "{\"Version\":\"2008-10-17\",\"Id\":\"_default_policy_ID\",\"Statement\":[{\"Sid\":\"_default_statement_ID\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"*\"},\"Action\":[\"SNS:GetTopicAttributes\",\"SNS:SetTopicAttributes\",\"SNS:AddPermission\",\"SNS:RemovePermission\",\"SNS:DeleteTopic\",\"SNS:Subscribe\",\"SNS:ListSubscriptionsByTopic\",\"SNS:Publish\"],\"Resource\":\"${SNSTopic3}\",\"Condition\":{\"StringEquals\":{\"AWS:SourceOwner\":\"${AWS::AccountId}\"}}}]}"
+          Topics: 
+            - !Ref SNSTopic3
+  LambdaFunction:
+        Type: "AWS::Lambda::Function"
+        Properties:
+            Description: ""
+            Environment: 
+                Variables: 
+                    aws_access_key_id: !Ref AccessKey
+                    aws_secret_access_key: !Ref SecretKey
+                    region_name: !Ref AWS::Region
+            FunctionName: "notify"
+            Handler: "notify.lambda_handler"
+            Architectures: 
+              - "x86_64"
+            Code: 
+                S3Bucket: !Ref LambdaBucket
+                S3Key: "notify.zip"
+            MemorySize: 128
+            Role: "arn:aws:iam::765466511114:role/Lambda-Basic-Role"
+            Runtime: "python3.9"
+            Timeout: 3
+            TracingConfig: 
+                Mode: "PassThrough"
+
+  LambdaFunction2:
+        Type: "AWS::Lambda::Function"
+        Properties:
+            Description: ""
+            Environment: 
+                Variables: 
+                    aws_access_key_id: !Ref AccessKey
+                    aws_secret_access_key: !Ref SecretKey
+                    region_name: !Ref AWS::Region
+            FunctionName: "topics"
+            Handler: "topics.lambda_handler"
+            Architectures: 
+              - "x86_64"
+            Code: 
+                S3Bucket: !Ref LambdaBucket
+                S3Key: "topics.zip"
+            MemorySize: 128
+            Role: "arn:aws:iam::765466511114:role/Lambda-Basic-Role"
+            Runtime: "python3.9"
+            Timeout: 3
+            TracingConfig: 
+                Mode: "PassThrough"
+
+  LambdaFunction3:
+        Type: "AWS::Lambda::Function"
+        Properties:
+            Description: ""
+            Environment: 
+                Variables: 
+                    aws_access_key_id: !Ref AccessKey
+                    aws_secret_access_key: !Ref SecretKey
+                    region_name: !Ref AWS::Region
+            FunctionName: "subscribe"
+            Handler: "subscribe.lambda_handler"
+            Architectures: 
+              - "x86_64"
+            Code: 
+                S3Bucket: !Ref LambdaBucket
+                S3Key: "subscribe.zip"
+            MemorySize: 128
+            Role: "arn:aws:iam::765466511114:role/Lambda-Basic-Role"
+            Runtime: "python3.9"
+            Timeout: 3
+            TracingConfig: 
+                Mode: "PassThrough"
+
+  LambdaFunction4:
+        Type: "AWS::Lambda::Function"
+        Properties:
+            Description: ""
+            Environment: 
+                Variables: 
+                    aws_access_key_id: !Ref AccessKey
+                    aws_secret_access_key: !Ref SecretKey
+                    region_name: !Ref AWS::Region
+            FunctionName: "unsubscribe"
+            Handler: "unsubscribe.lambda_handler"
+            Architectures: 
+              - "x86_64"
+            Code: 
+                S3Bucket: !Ref LambdaBucket
+                S3Key: "unsubscribe.zip"
+            MemorySize: 128
+            Role: "arn:aws:iam::765466511114:role/Lambda-Basic-Role"
+            Runtime: "python3.9"
+            Timeout: 3
+            TracingConfig: 
+                Mode: "PassThrough"
+
+
+  SNSAPI:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: FleaMART Subscription API
+      Description: APIs for FleaMART Subscription management
+      EndpointConfiguration:
+        Types:
+        - REGIONAL
+      Body:
+        swagger: "2.0"
+        info:
+          version: "2022-04-02T23:50:31Z"
+          title: "SNS"
+        host: "sek4bydstf.execute-api.us-east-1.amazonaws.com"
+        basePath: "/test"
+        schemes:
+        - "https"
+        paths:
+          /subscribe:
+            post:
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                httpMethod: "POST"
+                uri: !Sub
+                - "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${lambdaArn}/invocations"
+                - lambdaArn: !GetAtt LambdaFunction3.Arn
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                passthroughBehavior: "when_no_match"
+                contentHandling: "CONVERT_TO_TEXT"
+                type: "aws"
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+          /notify:
+            post:
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                httpMethod: "POST"
+                uri: !Sub
+                - "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${lambdaArn}/invocations"
+                - lambdaArn: !GetAtt LambdaFunction.Arn
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                passthroughBehavior: "when_no_match"
+                contentHandling: "CONVERT_TO_TEXT"
+                type: "aws"
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+          /topics:
+            get:
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                httpMethod: "POST"
+                uri: !Sub
+                - "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${lambdaArn}/invocations"
+                - lambdaArn: !GetAtt LambdaFunction2.Arn
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                passthroughBehavior: "when_no_match"
+                contentHandling: "CONVERT_TO_TEXT"
+                type: "aws_proxy"
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+          /unsubscribe:
+            post:
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                httpMethod: "POST"
+                uri: !Sub
+                - "arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${lambdaArn}/invocations"
+                - lambdaArn: !GetAtt LambdaFunction4.Arn
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                passthroughBehavior: "when_no_match"
+                contentHandling: "CONVERT_TO_TEXT"
+                type: "aws"
+            options:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              responses:
+                "200":
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+                  headers:
+                    Access-Control-Allow-Origin:
+                      type: "string"
+                    Access-Control-Allow-Methods:
+                      type: "string"
+                    Access-Control-Allow-Headers:
+                      type: "string"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                    responseParameters:
+                      method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+                      method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+                      method.response.header.Access-Control-Allow-Origin: "'*'"
+                requestTemplates:
+                  application/json: "{\"statusCode\": 200}"
+                passthroughBehavior: "when_no_match"
+                type: "mock"
+        definitions:
+          Empty:
+            type: "object"
+            title: "Empty Schema"
+
+      
+  
+  lambdaApiGatewayInvoke:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt LambdaFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 
+      - arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${SNSAPI}/${Stage}/*/notify
+      - Stage: !Ref APIStage
+
+  lambdaApiGatewayInvoke2:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt LambdaFunction2.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 
+      - arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${SNSAPI}/${Stage}/*/topics
+      - Stage: !Ref APIStage
+    
+  lambdaApiGatewayInvoke3:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt LambdaFunction3.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 
+      - arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${SNSAPI}/${Stage}/*/subscribe
+      - Stage: !Ref APIStage
+
+  lambdaApiGatewayInvoke4:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt LambdaFunction4.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 
+      - arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${SNSAPI}/${Stage}/*/unsubscribe
+      - Stage: !Ref APIStage
+
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+        Description: Deployment for Subscription management.
+        RestApiId: !Ref SNSAPI
+    
+  ApiGatewayStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+        DeploymentId: !Ref ApiDeployment
+        Description: Prod stage deployment of Subscription management API.
+        RestApiId: !Ref SNSAPI
+        StageName: 'prod'

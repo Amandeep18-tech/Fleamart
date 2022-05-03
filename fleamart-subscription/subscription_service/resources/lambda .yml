@@ -1,0 +1,105 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: ""
+Parameters:
+    LambdaBucket:
+        Type: "String"
+        Default: "lambdafunctions-fleamart"
+    AccessKey:
+        Type: "String"
+        Default: "AKIA3EOK4A4FHRPDX5OJ"
+    SecretKey:
+        Type: "String"
+        Default: "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"
+Resources:
+    LambdaFunction:
+        Type: "AWS::Lambda::Function"
+        Properties:
+            Description: ""
+            Environment: 
+                Variables: 
+                    aws_access_key_id: !Ref AccessKey
+                    aws_secret_access_key: !Ref SecretKey
+                    region_name: !Ref AWS::Region
+            FunctionName: "notify"
+            Handler: "notify.lambda_handler"
+            Architectures: 
+              - "x86_64"
+            Code: 
+                S3Bucket: !Ref LambdaBucket
+                S3Key: "notify.zip"
+            MemorySize: 128
+            Role: "arn:aws:iam::941321504667:role/LambdaExecute"
+            Runtime: "python3.9"
+            Timeout: 3
+            TracingConfig: 
+                Mode: "PassThrough"
+
+    LambdaFunction2:
+        Type: "AWS::Lambda::Function"
+        Properties:
+            Description: ""
+            Environment: 
+                Variables: 
+                    aws_access_key_id: !Ref AccessKey
+                    aws_secret_access_key: !Ref SecretKey
+                    region_name: !Ref AWS::Region
+            FunctionName: "topics"
+            Handler: "topics.lambda_handler"
+            Architectures: 
+              - "x86_64"
+            Code: 
+                S3Bucket: !Ref LambdaBucket
+                S3Key: "topics.zip"
+            MemorySize: 128
+            Role: "arn:aws:iam::941321504667:role/LambdaExecute"
+            Runtime: "python3.9"
+            Timeout: 3
+            TracingConfig: 
+                Mode: "PassThrough"
+
+    LambdaFunction3:
+        Type: "AWS::Lambda::Function"
+        Properties:
+            Description: ""
+            Environment: 
+                Variables: 
+                    aws_access_key_id: !Ref AccessKey
+                    aws_secret_access_key: !Ref SecretKey
+                    region_name: !Ref AWS::Region
+            FunctionName: "subscribe"
+            Handler: "subscribe.lambda_handler"
+            Architectures: 
+              - "x86_64"
+            Code: 
+                S3Bucket: !Ref LambdaBucket
+                S3Key: "subscribe.zip"
+            MemorySize: 128
+            Role: "arn:aws:iam::941321504667:role/LambdaExecute"
+            Runtime: "python3.9"
+            Timeout: 3
+            TracingConfig: 
+                Mode: "PassThrough"
+
+    LambdaFunction4:
+        Type: "AWS::Lambda::Function"
+        Properties:
+            Description: ""
+            Environment: 
+                Variables: 
+                    aws_access_key_id: !Ref AccessKey
+                    aws_secret_access_key: !Ref SecretKey
+                    region_name: !Ref AWS::Region
+            FunctionName: "unsubscribe"
+            Handler: "unsubscribe.lambda_handler"
+            Architectures: 
+              - "x86_64"
+            Code: 
+                S3Bucket: !Ref LambdaBucket
+                S3Key: "unsubscribe.zip"
+            MemorySize: 128
+            Role: "arn:aws:iam::941321504667:role/LambdaExecute"
+            Runtime: "python3.9"
+            Timeout: 3
+            TracingConfig: 
+                Mode: "PassThrough"
+
